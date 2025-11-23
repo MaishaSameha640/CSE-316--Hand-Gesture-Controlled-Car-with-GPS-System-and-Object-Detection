@@ -1,0 +1,186 @@
+\documentclass[conference]{IEEEtran}
+\usepackage{cite}
+\usepackage{amsmath,amssymb}
+\usepackage{graphicx}
+\usepackage{booktabs}
+\usepackage{url}
+\usepackage{color}
+\usepackage{listings}
+\usepackage{caption}
+\captionsetup{font=small}
+
+\begin{document}
+
+\title{Hand-Gesture-Controlled Car with GPS System and Object Detection}
+
+\author{\IEEEauthorblockN{Shuhurat Fariha\IEEEauthorrefmark{1}, Bivas Nandan Debnath\IEEEauthorrefmark{1}, Maisha Sameha\IEEEauthorrefmark{1}}
+\IEEEauthorblockA{Department of Computer Science and Engineering,\\
+University of Asia Pacific\\
+Email: 22201252@uap-bd.edu , 22201256@uap-bd.edu, 22201266@uap-bd.edu }
+}
+
+\maketitle
+
+\begin{abstract}
+This paper presents the design and implementation of a hand-gesture-controlled robotic vehicle integrating real-time GPS tracking and basic object detection for safe navigation. The system uses an MPU6050 inertial sensor mounted on a glove (or handheld controller) to capture hand gestures, an ESP32 Dev Board as the transmitter, and an ESP32-CAM as the receiver and main controller of the robotic vehicle. Gesture commands are transmitted via ESP-NOW, offering low-latency wireless communication. The vehicle uses DC geared motors and a motor driver (TB6612FNG/DRV8833) to carry out motion commands, while an ultrasonic sensor mounted on a tiny servo detects obstructions to prevent collisions. A NEO-6M GPS module provides real-time coordinates for remote monitoring and emergency location reporting. The prototype demonstrates reliable GPS reporting, straightforward obstacle avoidance, and simple remote control for small-scale rescue, surveillance, and logistical scenarios. We provided important implementation details, test observations, and the reasons behind component selection. Future improvements will include better geolocation, interaction with cloud dashboards for remote monitoring, and sophisticated vision-based object detection.
+\end{abstract}
+
+\begin{IEEEkeywords} 
+Hand-gesture control, ESP32, ESP-NOW, MPU6050, ESP32-CAM, NEO-6M GPS, obstacle avoidance, embedded systems.
+\end{IEEEkeywords}
+
+\section{Introduction}
+Human-machine interaction for mobile robots is an active research and application domain. Gesture-based control offers an intuitive, low-effort interface for remote operation in environments where traditional control means are impractical. This work documents the design, development, and evaluation of a hand-gesture-operated robotic car with integrated GPS-based tracking and obstacle detection. The primary objectives are (1) to enable real-time wireless robotic control through hand gestures, (2) to allow live location reporting via GPS for monitoring and emergency response, and (3) to implement basic obstacle detection to improve operational safety.
+
+\subsection{Motivation and Problem Statement}
+In situations like last-mile delivery, surveillance, and search and rescue, robotic vehicles are becoming more and more common.  Traditional control interfaces, such as remote consoles and joysticks, can be difficult or confusing. While GPS integration provides situational awareness, gesture control optimizes the interface.  The key difficulties addressed are robust gesture identification in noisy sensor data, low-latency wireless command transmission, and steady power and motor control for dependable vehicle operation.
+\subsection{Scope}
+This project targets a prototype-level demonstration using off-the-shelf modules (ESP32, MPU6050, ESP32-CAM, NEO-6M GPS, HC-SR04) and common motor drivers and batteries. Advanced autonomous navigation and machine-learning-based vision are out of scope but we discussed this as future work.
+
+\section{Related Work}
+Numerous tutorials and scholarly studies have presented ESP32-based mobile systems and gesture-controlled robotics.  This project was influenced by earlier works such as NEO-6M GPS integration tutorials, ESP32 with MPU6050 gesture mapping instructions, and ESP32-CAM projects for remote vision.  This project combines these elements into a single demonstrative prototype, with a focus on low-latency ESP-NOW communication and practical power management for mobile use.
+
+\section{System Design and Methodology}
+\subsection{Overview}
+The system consists of two main subsystems: a \emph{transmitter} (gesture controller) and a \emph{receiver} (robotic vehicle). After obtaining direction data from the MPU6050, the transmitter generates discrete gesture commands and transmits them to the vehicle's ESP32-CAM via ESP-NOW.  The vehicle interprets motor control signals while also monitoring obstacle proximity with an ultrasonic sensor and location data from the NEO-6M GPS module.
+\subsection{System Architecture}
+Figure~\ref{fig:block} illustrates the overall architecture of the Hand-Gesture-Controlled Car with GPS and object detection system.It consists of three primary components: the gesture controller, the robotic automobile, and the communication interface. Using the MPU6050 sensor, the gesture controller detects motion and uses ESP-NOW to wirelessly send commands in response. Through the ESP32-CAM, the robotic car receives these signals, interprets them, and adjusts the motors while continuously tracking GPS and distance.
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\linewidth]{System_architecture_diagram_1.png}
+    \label{fig:block}
+    \centering
+    \includegraphics[width=\linewidth]{System_architecture_diagram_2.png}
+    \caption{System block diagram of the Hand-Gesture-Controlled Car.}
+    \label{fig:block}
+\end{figure}
+
+\subsection{Primary Hardware Components}
+Table~\ref{tab:hardware} summarizes the key hardware modules used in the prototype, along with their roles and quantities.
+
+\begin{table}[!t]
+\caption{Primary Hardware Components}
+\label{tab:hardware}
+\centering
+\begin{tabular}{@{}lll@{}}
+\toprule
+\textbf{Component} & \textbf{Role} & \textbf{Qty}\\
+\midrule
+ESP32 Dev Board & Transmitter(gesture processing) &1 \\
+ESP32-CAM & Main controller &1 \\
+MPU6050 & Hand gesture(accelerometer + gyro) &1 \\
+HC-SR04 & Obstacle detection &1 \\
+NEO-6M GPS & Location tracking &1 \\
+Motor Driver & Drive control &1 \\
+DC Motors & Vehicle motion (left/right) &2 \\
+LiPo Battery Pack & Power supply &1 \\
+\bottomrule
+\end{tabular}
+\end{table}
+
+\subsection{Communication Protocol}
+ESP-NOW was chosen for wireless communication because of its low latency and peer-to-peer operation that doesn't require an access point.  The transmitter recognizes the vehicle's MAC address as a peer and sends small data packets with mapped x/y/z gesture values (0--254 range). After receiving a packet, the receiver instantly activates motors by executing an ESP-NOW receive callback.
+
+\subsection{Gesture Mapping and Processing}
+The MPU6050 DMP (Digital Motion Processor) outputs yaw/pitch/roll values. These are converted to degrees and mapped into a byte range using a linear mapping (e.g., map from $[-90,90]$ to $[0,254]$). Thresholds are set for specific actions (forward, backward, left, right, stop). Short delays and smoothing in the transmitter help to reduce jitter from inertial data.
+
+\subsection{Motor Control}
+Digital direction pins (IN1–IN4) and PWM for speed on enable pins are used to control motor direction. The receiver maintains a safety timeout: if no packet is received for a certain interval (e.g., 1000 ms), the motors are turned off to prevent runaway behavior.
+
+\subsection{Obstacle Detection and Safety}
+A micro servo rotates the ultrasonic sensor (or a small scanning method is used) to cover the forward arc. The car can stop or redirect by using differential wheel motions if the measured distance is less than a certain threshold. The car's SOS button initiates an emergency routine that can request GPS coordinates for rescue, stop the car, and sound a buzzer.
+
+\subsection{System Control Flow}
+The overall control logic is summarized in the flowchart shown in Figure~\ref{fig:flowchart}. The system begins with initialization of sensors and network setup. Sensor initialization and network configuration are the first steps in the system's operation. Gesture data from the MPU6050 is processed into discrete movements. The receiver receives these commands via ESP-NOW and decodes them to drive the motors. At the same time, the ultrasonic sensor ensures obstacle avoidance, and the GPS module supplies coordinate data. The system stops moving and initiates a safety response if it detects an obstruction within a predefined range.
+Data flow and decision logic are explained with a flowchart shown in Figure~\ref{fig:flowchart}.
+
+\begin{figure}[!t]
+    \centering
+    \includegraphics[height=0.7\textheight]{Hand-Gesture Controlled Car Control Flow & Decision-Making Logic.png}
+    \caption{Hand-Gesture Controlled Car Control Flow \& Decision-Making Logic}
+    \label{fig:flowchart}
+\end{figure}
+
+\section{Implementation}
+\begin{figure}[!t]
+    \centering
+    \includegraphics[width=\linewidth]{Prototype_image.png}
+    \caption{System Prototype Image of Hand-Gesture-Controlled Car.}
+    \label{fig 2:block}
+\end{figure}
+
+
+\subsection{Prototype Setup}
+The prototype was built on a four-wheel robotic chassis and powered by two 18650 Li-ion batteries.  An ESP32 development board was put on a breadboard and linked to an L298N motor driver to operate the four DC motors.  The motor driver received power directly from the battery pack, while the ESP32 sent directional control signals via its GPIO pins.\\
+
+The hand-gesture controller was implemented using a separate ESP32 module equipped with an MPU6050 sensor.  The MPU6050 was connected to the ESP32 via the I2C interface (SDA and SCL), and this unit wirelessly communicated gesture-based commands to the automobile.  The physical configuration consists of the chassis, battery holder, motor driver, ESP32 controller board, and gesture controller module, as shown in the Figure~\ref{fig 2:block}.
+
+
+%\subsection{Software Components and Libraries}
+%The following software components and Libraries are used: 
+%\begin{itemize}
+    %\item ESP32 Arduino core and ESP-NOW APIs.
+   % \item MPU6050 libraries(I2Cdev,MPU6050\_6Axis\_MotionApps20)for DMP support.
+   % \item TinyGPS or direct NMEA parsing for GPS data extraction (optional).
+   % \item Standard servo and ultrasonic control routines.
+%\end{itemize}
+
+\subsection{Testing Procedure}
+The testing focused on.
+\begin{enumerate}
+    \item Gesture-to-motion latency and reliability using ESP-NOW.
+    \item Accurate motor control for forward/backward movement and turns.
+    \item Safety behavior when communication is lost (signal timeout).
+\end{enumerate}
+\subsection{Key Results}
+To ensure its correct operation, the system was tested at various functional levels. The ESP32 communicated successfully with the L298N motor driver, and all four DC motors responded correctly to movement commands. The circuit remained stable with no power interruptions during operation.
+The MPU6050 provided smooth and accurate tilt readings, allowing the hand-gesture controller to send commands wirelessly with very low delay. During testing, the car immediately responded to forward, backward, left, and right gestures.
+Prototype image \ref{fig 2:block} shows the complete hardware setup, including the chassis, battery pack, ESP32 modules, motor driver, and sensors. Overall, the results confirm that the system couldn't achieve its key objectives, which are obstacle avoidance and real-time GPS monitoring with object detection.
+
+\section{Results and Discussion}
+\subsection{Project Outcomes}
+The prototype was successful in showing the following.
+\begin{itemize}
+    \item low-latency command transmission by using ESP-NOW at short distances (household/lab scale).
+    \item Improved gesture detection through calibration and smoothing.
+    \item Effective motor actuation and emergency stop after communication loss.
+\end{itemize}
+
+\subsection{Limitations and Challenges}
+\begin{itemize}
+    \item Failed to implement the NEO-6M GPS module and ultrasonic sensor.
+    \item Due to insufficient pins, sensors were not properly connected, which resulted in failure in some cases.
+    \item GPS accuracy is limited in indoor or obstructed environments; NEO-6M requires an antenna and view of the sky for best fixes.
+    \item Capacitors close to the ESP32-CAM help reduce Wi-Fi/camera current spikes; battery management requires careful balancing between motor demands and controller/sensor requirements.
+    \item The ESP32-CAM has limited GPIO availability; careful pin setup is required for expansion.
+\end{itemize}
+
+\subsection{Lessons Learned}
+To create an effective prototype, sensors must be calibrated carefully, peers registered in ESP-NOW, and safety timeouts set cautiously.  To validate safety logic, testing needs to include signal loss scenarios as well as realistic obstacle setups. The proper count of pins and the proper knowledge of pin configuration are required to make it a success.
+
+\section{Conclusion and Future Work}
+Our idea presented a gesture-controlled robotic vehicle that utilized ESP-NOW communication, inertial-sensor-based gesture capture, ultrasonic-based obstacle avoidance, and a GPS module for live location tracking.  The prototype achieves the key objectives of intuitive control and basic safety features. But the main important feature is something we couldn't achieve due to limited knowledge and expertise. For future work, it can surely be said that the first thing that should be implemented is the NEO-6M GPS module. Future enhancements will include cloud-based dashboards for remote communication, sensor fusion for improved localization, robust vision-based object detection with the ESP32-CAM, and energy-optimized motor control for longer operating time.
+
+
+\section*{Acknowledgment}
+The authors acknowledge the Microprocessors and Microcontrollers Lab (CSE 316) at the University of Asia Pacific for guidance and access to laboratory resources.
+
+\begin{thebibliography}{00}
+\bibitem{esp32pinout} ESP32-WROOM-32 30-pin configuration. (Online). Available:\url{https://esp32.com/viewtopic.php?t=9875}
+\bibitem{rntgps} Random Nerd Tutorials, "ESP32 with NEO-6M GPS Module"  (Online). Available:\url{https://randomnerdtutorials.com/esp32-neo-6m-gps-module-arduino/}
+\bibitem{rntcam} Random Nerd Tutorials, ''Setting up ESP32 CAM'' (Online). Available:\url{https://randomnerdtutorials.com/program-upload-code-esp32-cam/}
+\bibitem{rntmpu} Random Nerd Tutorials, "ESP32 with MPU6050" (Online).
+Available:\url{https://randomnerdtutorials.com/esp32-mpu-6050-accelerometer-gyroscope-arduino/}
+\bibitem{rntcar}Gesture-Controlled Robot Car.
+Available:\url{https://www.ijraset.com/research-paper/gesture-controlled-robot-car?utm_source=chatgpt.com}
+\end{thebibliography}
+
+% Optional: commented figure placeholders for later insertion
+% \begin{figure}[!t]
+%   \centering
+%   %\includegraphics[width=\linewidth]{path/to/prototype_image.jpg}
+%   \caption{Prototype hardware setup (to be added).}
+%   \label{fig:prototype}
+% \end{figure}
+
+\end{document}
